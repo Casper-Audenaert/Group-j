@@ -5,11 +5,11 @@ Assignment 3: an ML service for a virtual diabetes clinic. It predicts a disease
 ## Running the Docker image
 
 ```bash
-docker pull ghcr.io/casper-audenaert/group-j:v0.1
-docker run -it -p 80:80 ghcr.io/casper-audenaert/group-j:v0.1
+docker pull ghcr.io/casper-audenaert/group-j:v0.2
+docker run -it -p 80:80 ghcr.io/casper-audenaert/group-j:v0.2
 ```
 
-
+For the baseline version, use `:v0.1` instead.
 
 ## Endpoints
 
@@ -20,7 +20,7 @@ curl http://localhost:80/health
 ```
 
 ```json
-{"status": "ok", "model_version": "v0.1"}
+{"status": "ok", "model_version": "v0.2"}
 ```
 
 ### POST /predict
@@ -32,7 +32,7 @@ curl -X POST http://localhost:80/predict -H "Content-Type: application/json" -d 
 ```
 
 ```json
-{"prediction": 235.9496372217627}
+{"prediction": 225.89820790392278}
 ```
 
 ## Error responses
