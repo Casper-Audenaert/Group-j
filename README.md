@@ -57,7 +57,7 @@ You need Python 3.11.
 ```bash
 python -m venv .venv
 source .venv/bin/activate        # on Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 ruff check .                     # lint
 pytest                           # tests
