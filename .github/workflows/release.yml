@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+
+      - name: Tag must match MODEL_VERSION
+        run: grep -q "^MODEL_VERSION = \"${GITHUB_REF_NAME}\"" app/train.py
+
+      - name: Build image
+        run: docker build --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" -t "$IMAGE" .
+
+      - name: Container smoke tests
+        run: |
+          docker run -d --name svc -p 80:80 "$IMAGE"
+          for i in $(seq 30); do curl -sf localhost/health && break; sleep 1; done
+          curl -sf localhost/health | tee health.json
+          grep -q "\"model_version\":\"${GITHUB_REF_NAME}\"" health.json
+          curl -sf -X POST localhost/predict -H "Content-Type: application/json" \
+            -d '{"age":0.02,"sex":-0.044,"bmi":0.06,"bp":-0.03,"s1":-0.02,"s2":0.03,"s3":-0.02,"s4":0.02,"s5":0.02,"s6":-0.001}' \
+            | tee pred.json
+          python3 -c "import json; assert isinstance(json.load(open('pred.json'))['prediction'], float)"
+          code=$(curl -s -o err.json -w '%{http_code}' -X POST localhost/predict -H "Content-Type: application/json" -d '{"age":0.02}')
+          cat err.json; test "$code" = 422 && grep -q s6 err.json
+          docker cp svc:/app/model/metrics.json metrics.json
+          docker rm -f svc
+
+      - name: Push to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "Image: \`docker pull $IMAGE\`"
+            echo; echo "## Metrics"; echo '```json'; cat metrics.json; echo '```'
+            echo; echo "## Changelog"
+            awk -v t="## [${GITHUB_REF_NAME#v}]" 'index($0,t)==1{f=1;next} /^## \[/{f=0} f' CHANGELOG.md
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" metrics.json --title "$GITHUB_REF_NAME" --notes-file notes.md
